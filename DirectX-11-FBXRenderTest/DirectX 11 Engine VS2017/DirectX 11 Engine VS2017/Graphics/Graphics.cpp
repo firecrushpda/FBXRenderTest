@@ -32,6 +32,14 @@ bool Graphics::Initialize(HWND hwnd, int width, int height)
 	quad->scl = XMFLOAT3(10, 10, 10);
 	quad->sclVector = XMLoadFloat3(&quad->scl);
 
+
+	sphere = new Model;
+	sphere->Initialize("Data//Sphere.fbx", device.Get(), deviceContext.Get(), NULL, cb_vs_vertexshader);
+	sphere->AdjustPosition(50, 0, 0);
+	//quad->scl = XMFLOAT3(10, 10, 10);
+	sphere->sclVector = XMLoadFloat3(&quad->scl);
+	
+
 	if (!InitializeScene())
 		return false;
 
@@ -66,14 +74,15 @@ void Graphics::RenderFrame(float dt)
 
 	deviceContext->IASetInputLayout(vertexshader_skyBox.GetInputLayout());
 	deviceContext->VSSetShader(vertexshader_skyBox.GetShader(), NULL, 0);
-	deviceContext->PSSetShader(pixelshader_skyBox.GetShader(), NULL, 0);//PrefilterMapPixelShader 
-	this->deviceContext->RSSetState(this->rasterizerState.Get()); //
-	deviceContext->OMSetDepthStencilState(depthUnenableStencilState.Get(), 0);//
+	deviceContext->PSSetShader(pixelshader_skyBox.GetShader(), NULL, 0);
+	deviceContext->RSSetState(this->rasterizerState.Get());
+	deviceContext->OMSetDepthStencilState(depthUnenableStencilState.Get(), 0);
 
 	auto viewmat = camera.GetViewMatrix();
 	viewmat.r[3] = g_XMIdentityR3;
 	skybox->model->transfomrMatirx = XMMatrixIdentity();
-	skybox->model->SetTexture(skybox->textureView2.Get());
+	//skybox->model->SetTexture(skybox->textureView2.Get());
+	this->deviceContext->PSSetShaderResources(0, 1, skybox->textureView2.GetAddressOf());
 	skybox->model->Draw(viewmat * camera.GetProjectionMatrix());
 
 	this->deviceContext->IASetInputLayout(this->vertexshader.GetInputLayout());
@@ -81,25 +90,24 @@ void Graphics::RenderFrame(float dt)
 	this->deviceContext->OMSetDepthStencilState(this->depthStencilState.Get(), 0);
 	this->deviceContext->PSSetSamplers(0, 1, this->samplerState.GetAddressOf());
 	this->deviceContext->VSSetShader(vertexshader.GetShader(), NULL, 0);
-	this->deviceContext->PSSetShader(pixelshader.GetShader(), NULL, 0);
+	this->deviceContext->PSSetShader(pixelmatshader.GetShader(), NULL, 0);
 
 	UINT offset = 0;
 	static float alpha = 1.0f;
-	static float roughness = 1.0f;
-	static float metallic = 1.0f;
+	static float roughness = 0.5f;
+	static float anisotropic = 0.0f;
+	static float clearcoat = 0.0f;
+	static float clearcoatGloss = 1.0f;
+	static float sheen = 0.0f;
+	static float sheenTint = 0.0f;
+	static float specular = 0.5f;
+	static float specularTint = 1.0f;
+	static float subsurface = 0.0f;
+	static float metallic = 0.0f;
+	static XMFLOAT3 lightcol;
+
 	{ //Pavement Cube Texture
 		//Update Constant Buffer
-		static float translationOffset[3] = { 0, 0, -1.0f };
-		XMMATRIX world = XMMatrixTranslation(translationOffset[0], translationOffset[1], translationOffset[2]);
-		cb_vs_vertexshader.data.mat = world * camera.GetViewMatrix() * camera.GetProjectionMatrix();
-		cb_vs_vertexshader.data.mat = DirectX::XMMatrixTranspose(cb_vs_vertexshader.data.mat);
-		cb_vs_vertexshader.data.mat_wvp = world * camera.GetViewMatrix();
-		cb_vs_vertexshader.data.mat_wvp = DirectX::XMMatrixTranspose(cb_vs_vertexshader.data.mat_wvp);
-
-		if (!cb_vs_vertexshader.ApplyChanges())
-			return;
-		this->deviceContext->VSSetConstantBuffers(0, 1, this->cb_vs_vertexshader.GetAddressOf());
-
 		this->cb_ps_pixelshader.data.alpha = alpha;
 		this->cb_ps_pixelshader.data.metallic = metallic;
 		this->cb_ps_pixelshader.data.roughness = roughness;
@@ -109,28 +117,49 @@ void Graphics::RenderFrame(float dt)
 		this->cb_ps_pixelshader.ApplyChanges();
 		this->deviceContext->PSSetConstantBuffers(0, 1, this->cb_ps_pixelshader.GetAddressOf());
 
-		cb_ps_lightdata.data.lightPos1 = camera.GetPositionFloat3();
+		cb_ps_lightdata.data.lightCol = lightcol;
 		cb_ps_lightdata.ApplyChanges();
 		this->deviceContext->PSSetConstantBuffers(1, 1, this->cb_ps_lightdata.GetAddressOf());
 
-		this->deviceContext->PSSetShaderResources(0, 1, this->AluminiumInsulator_Albedo.GetAddressOf());
-		this->deviceContext->PSSetShaderResources(1, 1, this->AluminiumInsulator_Normal.GetAddressOf());
-		this->deviceContext->PSSetShaderResources(2, 1, this->AluminiumInsulator_Metallic.GetAddressOf());
-		this->deviceContext->PSSetShaderResources(3, 1, this->AluminiumInsulator_Roughness.GetAddressOf());
+		this->deviceContext->PSSetShaderResources(0, 1, &brdfLUTSRV);
+		this->deviceContext->PSSetShaderResources(1, 1, &skyIBLSRV);//  
+		this->deviceContext->PSSetShaderResources(2, 1, &envMapSRV);//
+
+		this->deviceContext->PSSetShaderResources(3, 1, this->Wood_Albedo.GetAddressOf());
+		this->deviceContext->PSSetShaderResources(4, 1, this->Wood_Normal.GetAddressOf());
+		this->deviceContext->PSSetShaderResources(5, 1, this->Wood_Metallic.GetAddressOf());
+		this->deviceContext->PSSetShaderResources(6, 1, this->Wood_Roughness.GetAddressOf());
 		
-		this->deviceContext->PSSetShaderResources(4, 1, &brdfLUTSRV);
-		this->deviceContext->PSSetShaderResources(5, 1, &skyIBLSRV);//  
-		this->deviceContext->PSSetShaderResources(6, 1, &envMapSRV);//
+		//this->deviceContext->PSSetShader(pixelshader.GetShader(), NULL, 0);
+		cb_ps_BSDFData.data.roughness = roughness;
+		cb_ps_BSDFData.data.anisotropic = anisotropic;
+		cb_ps_BSDFData.data.clearcoat = clearcoat;
+		cb_ps_BSDFData.data.clearcoatGloss = clearcoatGloss;
+		cb_ps_BSDFData.data.sheen = sheen;
+		cb_ps_BSDFData.data.sheenTint = sheenTint;
+		cb_ps_BSDFData.data.specular = specular;
+		cb_ps_BSDFData.data.specularTint = specularTint;
+		cb_ps_BSDFData.data.subsurface = subsurface;
+		cb_ps_BSDFData.data.metallic = metallic;
+		cb_ps_BSDFData.data.baseColor = XMFLOAT3(1, 1, 1);
+		cb_ps_BSDFData.ApplyChanges();
+		this->deviceContext->PSSetConstantBuffers(2, 1, this->cb_ps_BSDFData.GetAddressOf());
 
-		this->deviceContext->IASetVertexBuffers(0, 1, vertexBuffer.GetAddressOf(), vertexBuffer.StridePtr(), &offset);
-		this->deviceContext->IASetIndexBuffer(indicesBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
-
-		model->SetTexture(AluminiumInsulator_Albedo.Get());// 
 		model->scl = XMFLOAT3(0.1f, 0.1f, 0.1f);
 		model->sclVector = XMLoadFloat3(&model->scl);
 		model->Draw(camera.GetViewMatrix() * camera.GetProjectionMatrix());
 
-		quad->SetTexture(AluminiumInsulator_Albedo.Get());// 
+		this->deviceContext->PSSetShaderResources(3, 1, this->AluminiumInsulator_Albedo.GetAddressOf());
+		this->deviceContext->PSSetShaderResources(4, 1, this->AluminiumInsulator_Normal.GetAddressOf());
+		this->deviceContext->PSSetShaderResources(5, 1, this->AluminiumInsulator_Metallic.GetAddressOf());
+		this->deviceContext->PSSetShaderResources(6, 1, this->AluminiumInsulator_Roughness.GetAddressOf());
+		sphere->Draw(camera.GetViewMatrix() * camera.GetProjectionMatrix());
+		
+		
+		this->deviceContext->PSSetShaderResources(3, 1, this->Leather_Albedo.GetAddressOf());
+		this->deviceContext->PSSetShaderResources(4, 1, this->Leather_Normal.GetAddressOf());
+		this->deviceContext->PSSetShaderResources(5, 1, this->Leather_Metallic.GetAddressOf());
+		this->deviceContext->PSSetShaderResources(6, 1, this->Leather_Roughness.GetAddressOf());
 		quad->Draw(camera.GetViewMatrix() * camera.GetProjectionMatrix());
 	}
 	
@@ -162,6 +191,16 @@ void Graphics::RenderFrame(float dt)
 	ImGui::DragFloat("Alpha", &alpha, 0.1f, 0.0f, 1.0f);
 	ImGui::DragFloat("Roughness", &roughness, 0.1f, 0.0f, 1.0f);
 	ImGui::DragFloat("Metallic", &metallic, 0.1f, 0.0f, 1.0f);
+	ImGui::DragFloat("Anisotropic", &anisotropic, 0.1f, 0.0f, 1.0f);
+	ImGui::DragFloat("Clearcoat", &clearcoat, 0.1f, 0.0f, 1.0f);
+	ImGui::DragFloat("ClearcoatGloss", &clearcoatGloss, 0.1f, 0.0f, 1.0f);
+	ImGui::DragFloat("Sheen", &sheen, 0.1f, 0.0f, 1.0f);
+	ImGui::DragFloat("SheenTint", &sheenTint, 0.1f, 0.0f, 1.0f);
+	ImGui::DragFloat("Specular", &specular, 0.1f, 0.0f, 1.0f);
+	ImGui::DragFloat("SpecularTint", &specularTint, 0.1f, 0.0f, 1.0f);
+	ImGui::DragFloat("Subsurface", &subsurface, 0.1f, 0.0f, 1.0f);
+	ImGui::DragFloat3("LightColor", &lightcol.x, 0.1f, 0.0f, 1.0f);
+	
 	ImGui::End();
 	//Assemble Together Draw Data
 	ImGui::Render();
@@ -379,7 +418,10 @@ bool Graphics::InitializeShaders()
 	if (!vertexshader.Initialize(this->device, shaderfolder + L"vertexshader.cso", layout3D, numElements3D))
 		return false;
 
-	if (!pixelshader.Initialize(this->device, shaderfolder + L"pixelmatshader.cso"))
+	if (!pixelshader.Initialize(this->device, shaderfolder + L"pixelshader.cso"))
+		return false;
+
+	if (!pixelmatshader.Initialize(this->device, shaderfolder + L"pixelmatshader.cso"))
 		return false;
 
 	if (!vertexshader_skyBox.Initialize(this->device, shaderfolder + L"vertexshader_skyBox.cso", layout3D, numElements3D))
@@ -395,6 +437,9 @@ bool Graphics::InitializeShaders()
 		return false;
 
 	if (!IntegrateBRDFPixelShader.Initialize(this->device, shaderfolder + L"IntegrateBRDFPixelShader.cso"))
+		return false;
+
+	if (!DisneyBSDFPixelShader.Initialize(this->device, shaderfolder + L"pixelDisneyBSDFshader.cso"))
 		return false;
 
 	return true;
@@ -466,6 +511,37 @@ bool Graphics::InitializeScene()
 
 		hr = DirectX::CreateWICTextureFromFile(this->device.Get(), L"Data\\Textures\\AluminiumInsulator_Normal.png", nullptr, AluminiumInsulator_Normal.GetAddressOf());
 		COM_ERROR_IF_FAILED(hr, "Failed to create wic texture from file.");
+
+		hr = DirectX::CreateWICTextureFromFile(this->device.Get(), L"Data\\Textures\\Leather_Roughness.png", nullptr, Leather_Roughness.GetAddressOf());
+		COM_ERROR_IF_FAILED(hr, "Failed to create wic texture from file.");
+
+		hr = DirectX::CreateWICTextureFromFile(this->device.Get(), L"Data\\Textures\\Leather_Albedo.png", nullptr, Leather_Albedo.GetAddressOf());
+		COM_ERROR_IF_FAILED(hr, "Failed to create wic texture from file.");
+
+		hr = DirectX::CreateWICTextureFromFile(this->device.Get(), L"Data\\Textures\\Leather_Height.png", nullptr, Leather_Height.GetAddressOf());
+		COM_ERROR_IF_FAILED(hr, "Failed to create wic texture from file.");
+
+		hr = DirectX::CreateWICTextureFromFile(this->device.Get(), L"Data\\Textures\\Leather_Metallic.png", nullptr, Leather_Metallic.GetAddressOf());
+		COM_ERROR_IF_FAILED(hr, "Failed to create wic texture from file.");
+
+		hr = DirectX::CreateWICTextureFromFile(this->device.Get(), L"Data\\Textures\\Leather_Normal.png", nullptr, Leather_Normal.GetAddressOf());
+		COM_ERROR_IF_FAILED(hr, "Failed to create wic texture from file.");
+
+		hr = DirectX::CreateWICTextureFromFile(this->device.Get(), L"Data\\Textures\\Wood_Roughness.png", nullptr, Wood_Roughness.GetAddressOf());
+		COM_ERROR_IF_FAILED(hr, "Failed to create wic texture from file.");
+
+		hr = DirectX::CreateWICTextureFromFile(this->device.Get(), L"Data\\Textures\\Wood_Albedo.png", nullptr, Wood_Albedo.GetAddressOf());
+		COM_ERROR_IF_FAILED(hr, "Failed to create wic texture from file.");
+
+		hr = DirectX::CreateWICTextureFromFile(this->device.Get(), L"Data\\Textures\\Wood_Height.png", nullptr, Wood_Height.GetAddressOf());
+		COM_ERROR_IF_FAILED(hr, "Failed to create wic texture from file.");
+
+		hr = DirectX::CreateWICTextureFromFile(this->device.Get(), L"Data\\Textures\\Wood_Metallic.png", nullptr, Wood_Metallic.GetAddressOf());
+		COM_ERROR_IF_FAILED(hr, "Failed to create wic texture from file.");
+
+		hr = DirectX::CreateWICTextureFromFile(this->device.Get(), L"Data\\Textures\\Wood_Normal.png", nullptr, Wood_Normal.GetAddressOf());
+		COM_ERROR_IF_FAILED(hr, "Failed to create wic texture from file.");
+
 		//Initialize Constant Buffer(s)
 		hr = this->cb_vs_vertexshader.Initialize(this->device.Get(), this->deviceContext.Get());
 		COM_ERROR_IF_FAILED(hr, "Failed to initialize constant buffer.");
@@ -475,12 +551,28 @@ bool Graphics::InitializeScene()
 
 		hr = this->cb_ps_lightdata.Initialize(this->device.Get(), this->deviceContext.Get());
 		COM_ERROR_IF_FAILED(hr, "Failed to initialize constant buffer.");
-		cb_ps_lightdata.data.lightPos1 = XMFLOAT3(50,0,150.0f);
+		cb_ps_lightdata.data.lightPos1 = XMFLOAT3(0,100,100.0f);
 		cb_ps_lightdata.data.lightPos2 = XMFLOAT3(-150, 0, 50.0f);
 		cb_ps_lightdata.data.lightPos3 = XMFLOAT3(50, 0, -50.0f);
 		cb_ps_lightdata.data.lightPos4 = XMFLOAT3(-50, 0, -50.0f);
-		cb_ps_lightdata.data.lightCol = XMFLOAT3(1.0f,0.0f,0.0f);
+		cb_ps_lightdata.data.lightCol = XMFLOAT3(1.0f,1.0f,1.0f);
 		cb_ps_lightdata.ApplyChanges();
+
+		hr = this->cb_ps_BSDFData.Initialize(this->device.Get(), this->deviceContext.Get());
+		COM_ERROR_IF_FAILED(hr, "Failed to initialize constant buffer.");
+		cb_ps_BSDFData.data.baseColor = XMFLOAT3(.82f, .67f, .16f);//XMFLOAT3(.82f, .67f, .16f);
+		cb_ps_BSDFData.data.anisotropic = 0;
+		cb_ps_BSDFData.data.clearcoat = 0;
+		cb_ps_BSDFData.data.clearcoatGloss = 1;
+		cb_ps_BSDFData.data.metallic = 0;
+		cb_ps_BSDFData.data.roughness = 0.5;
+		cb_ps_BSDFData.data.sheen = 0;
+		cb_ps_BSDFData.data.sheenTint = 0.5;
+		cb_ps_BSDFData.data.specular = 0.5;
+		cb_ps_BSDFData.data.specularTint = 0;
+		cb_ps_BSDFData.data.subsurface = 0;
+		cb_ps_BSDFData.ApplyChanges();
+
 
 		hr = this->cb_ps_iblstatus.Initialize(this->device.Get(), this->deviceContext.Get());
 		COM_ERROR_IF_FAILED(hr, "Failed to initialize constant buffer.");
@@ -582,7 +674,7 @@ bool Graphics::InitializeIBLStatus()
 		deviceContext->VSSetShader(vertexshader_skyBox.GetShader(), 0, 0);
 		deviceContext->PSSetShader(ConvolutionPixelShader.GetShader(), 0, 0);
 
-		this->cb_vs_vertexshader.data.mat = DirectX::XMMatrixIdentity() * XMLoadFloat4x4(&camViewMatrix);// *XMLoadFloat4x4(&camProjMatrix); dont ask me i dont know why!!!!!!! it just worked!!!!!!!!!!
+		this->cb_vs_vertexshader.data.mat = DirectX::XMMatrixIdentity() * XMLoadFloat4x4(&camViewMatrix);// * XMLoadFloat4x4(&camProjMatrix); dont ask me i dont know why!!!!!!! it just worked!!!!!!!!!!
 		//this->cb_vs_vertexshader.data.mat = DirectX::XMMatrixTranspose(this->cb_vs_vertexshader.data.mat);
 		this->cb_vs_vertexshader.data.mat_wvp = DirectX::XMMatrixIdentity();
 		this->cb_vs_vertexshader.ApplyChanges();
@@ -685,7 +777,7 @@ bool Graphics::InitializeIBLStatus()
 			XMMATRIX P = DirectX::XMMatrixPerspectiveFovLH(90.0f, static_cast<float>(windowWidth) / static_cast<float>(windowHeight), 0.1f, 3000.0f);//  0.5f * XM_PI, 1.0f, 0.1f, 100.0f   
 			XMStoreFloat4x4(&camProjMatrix,P);//DirectX::XMMatrixTranspose(
 
-			this->cb_vs_vertexshader.data.mat = DirectX::XMMatrixIdentity() * XMLoadFloat4x4(&camViewMatrix);// *XMLoadFloat4x4(&camProjMatrix); dont ask me i dont know why!!!!!!! it just worked!!!!!!!!!!
+			this->cb_vs_vertexshader.data.mat = DirectX::XMMatrixIdentity() * XMLoadFloat4x4(&camViewMatrix);// * XMLoadFloat4x4(&camProjMatrix); dont ask me i dont know why!!!!!!! it just worked!!!!!!!!!!
 			//this->cb_vs_vertexshader.data.mat = DirectX::XMMatrixTranspose(this->cb_vs_vertexshader.data.mat);
 			this->cb_vs_vertexshader.data.mat_wvp = DirectX::XMMatrixIdentity();
 			this->cb_vs_vertexshader.ApplyChanges();

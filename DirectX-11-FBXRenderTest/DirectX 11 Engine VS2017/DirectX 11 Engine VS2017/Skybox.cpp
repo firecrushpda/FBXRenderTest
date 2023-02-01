@@ -15,6 +15,8 @@ bool Skybox::Initialize(ID3D11Device * device,
 	ConstantBuffer<CB_VS_vertexshader>& cb_vs_vertexshader)
 {
 	this->model = new Model;
+	this->model->scl = XMFLOAT3(1, 1, 1);
+	this->model->sclVector = XMLoadFloat3(&this->model->scl);
 	this->model->SetPosition(0.0f, 0.0f, 0.0f);
 	this->model->SetRotation(0.0f, 0.0f, 0.0f);
 	model->Initialize("Data//Sphere.fbx", device, deviceContext, NULL, cb_vs_vertexshader);

@@ -78,14 +78,14 @@ void Model::Draw(const XMMATRIX & viewProjectionMatrix)
 {
 	//Update Constant buffer with WVP Matrix
 	auto sclMatrix = XMMatrixScalingFromVector(sclVector);
-	this->cb_vs_vertexshader->data.mat = this->transfomrMatirx * sclMatrix * this->worldMatrix * viewProjectionMatrix;
+	this->cb_vs_vertexshader->data.mat = this->transfomrMatirx * sclMatrix * this->worldMatrix * viewProjectionMatrix;//
 	this->cb_vs_vertexshader->data.mat = XMMatrixTranspose(this->cb_vs_vertexshader->data.mat);
-	this->cb_vs_vertexshader->data.mat_wvp = this->transfomrMatirx * this->worldMatrix; 
+	this->cb_vs_vertexshader->data.mat_wvp = this->transfomrMatirx * sclMatrix * this->worldMatrix;//
 	this->cb_vs_vertexshader->data.mat_wvp = XMMatrixTranspose(this->cb_vs_vertexshader->data.mat_wvp);
 	this->cb_vs_vertexshader->ApplyChanges();
 	this->deviceContext->VSSetConstantBuffers(0, 1, this->cb_vs_vertexshader->GetAddressOf());
 
-	this->deviceContext->PSSetShaderResources(0, 1, &this->texture); //Set Texture
+	//this->deviceContext->PSSetShaderResources(0, 1, &this->texture); //Set Texture
 
 	stride = sizeof(Vertex);
 	UINT uiOffset = 0;

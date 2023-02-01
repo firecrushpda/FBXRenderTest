@@ -25,6 +25,21 @@ cbuffer lightDataBuffer : register(b1)
 	float padding5;
 }
 
+cbuffer BSDFConstantBuffer : register(b2)
+{
+	float3 baseColor;
+	float metallic;
+	float subsurface;
+	float specular;
+	float roughness;
+	float specularTint;
+	float anisotropic;
+	float sheen;
+	float sheenTint;
+	float clearcoat;
+	float clearcoatGloss;
+}
+
 struct PS_INPUT
 {
     float4 inPosition : SV_POSITION;
@@ -37,16 +52,52 @@ struct PS_INPUT
 
 SamplerState basicSampler : SAMPLER : register(s0);
 
-Texture2D objTexture : TEXTURE: register(t0);
-Texture2D normalSRV : register(t1);
-Texture2D metallicSRV : register(t2);
-Texture2D roughSRV : register(t3);
+Texture2D brdfLUT : register(t0);
+TextureCube skyIR : register(t1);
+TextureCube skyPrefilter: register(t2);
 
-Texture2D brdfLUT : register(t4);
-TextureCube skyIR : register(t5);
-TextureCube skyPrefilter: register(t6);
+Texture2D objTexture : TEXTURE: register(t3);
+Texture2D normalSRV : register(t4);
+Texture2D metallicSRV : register(t5);
+Texture2D roughSRV : register(t6);
 
 Texture2D dissolveNoiseTexture : TEXTURE: register(t7);
+
+//======================================================
+float sqr(float x) { return x * x; }
+
+float smithG_GGX_aniso(float NdotV, float VdotX, float VdotY, float ax, float ay)
+{
+	return 1 / (NdotV + sqrt(sqr(VdotX*ax) + sqr(VdotY*ay) + sqr(NdotV)));
+}
+
+float SchlickFresnel(float u)
+{
+	float m = clamp(1 - u, 0, 1);
+	float m2 = m * m;
+	return m2 * m2*m; // pow(m,5)
+}
+
+float GTR2_aniso(float NdotH, float HdotX, float HdotY, float ax, float ay)
+{
+	return 1 / (PI * ax*ay * sqr(sqr(HdotX / ax) + sqr(HdotY / ay) + NdotH * NdotH));
+}
+
+float GTR1(float NdotH, float a)
+{
+	if (a >= 1) return 1 / PI;
+	float a2 = a * a;
+	float t = 1 + (a2 - 1)*NdotH*NdotH;
+	return (a2 - 1) / (PI*log(a2)*t);
+}
+
+float smithG_GGX(float NdotV, float alphaG)
+{
+	float a = alphaG * alphaG;
+	float b = NdotV * NdotV;
+	return 1 / (NdotV + sqrt(a + b - a * b));
+}
+//======================================================
 
 float NormalDistributionGGXTR(float3 normalVec, float3 halfwayVec, float roughness)
 {
@@ -124,8 +175,47 @@ void CalcRadiance(PS_INPUT input, float3 viewDir, float3 normalVec, float3 albed
 
 float4 main(PS_INPUT input) : SV_TARGET
 {
+
+	//=================================================================
+	float3 L = normalize(lightPos1 - input.inWorldPos);//normalize(lightPos1);
+	float3 V = normalize(cameraPosition - input.inWorldPos);//normalize(cameraPosition);
+	float3 N = normalize(input.inNormal);
+	float3 X = normalize(input.inTangent - N * dot(input.inTangent, N));
+	float3 Y = normalize(cross(X, N));
+
+	float NdotL = dot(N, L);
+	float NdotV = dot(N, V);
+
+	float3 H = normalize(L + V);
+	float NdotH = dot(N, H);
+	float LdotH = dot(L, H);
+
+	float aspect = sqrt(1 - anisotropic * .9);
+	float ax = max(.001, sqr(roughness) / aspect);
+	float ay = max(.001, sqr(roughness)*aspect);
+
+	float Gs;
+	Gs = smithG_GGX_aniso(NdotL, dot(L, X), dot(L, Y), ax, ay);
+	Gs *= smithG_GGX_aniso(NdotV, dot(V, X), dot(V, Y), ax, ay);
+
+	float3 Cdlin = pow(baseColor, 2.2f);
+	float Cdlum = .3 * Cdlin[0] + .6 * Cdlin[1] + .1 * Cdlin[2];
+
+	float3 Ctint = Cdlum > 0 ? Cdlin / Cdlum : float3(1, 1, 1);
+	float3 Cspec0 = lerp(specular *.08 * lerp(float3(1, 1, 1), Ctint, specularTint), Cdlin, metallic);
+	float3 Csheen = lerp(float3(1, 1, 1), Ctint, sheenTint);
+	float FH = SchlickFresnel(LdotH);
+	float3 Fs = lerp(Cspec0, float3(1, 1, 1), FH);
+	float Ds = GTR2_aniso(NdotH, dot(H, X), dot(H, Y), ax, ay);
+
+	float Dr = GTR1(NdotH, lerp(.1, .001, clearcoatGloss));
+	float Fr = lerp(.04, 1.0, FH);
+	float Gr = smithG_GGX(NdotL, .25) * smithG_GGX(NdotV, .25);
+
+	//=================================================================
+
     //float3 pixelColor = objTexture.Sample(objSamplerState, input.inTexCoord);
-	float3 pixelColor = pow(objTexture.Sample(basicSampler, input.inTexCoord).rgb, 2.2f);//
+	float3 pixelColor = objTexture.Sample(basicSampler, input.inTexCoord).rgb;//pow(, 2.2f)
 
 	//Normal
 	input.inNormal = normalize(input.inNormal);
@@ -133,7 +223,7 @@ float4 main(PS_INPUT input) : SV_TARGET
 
 	float3 normalFromMap = normalSRV.Sample(basicSampler, input.inTexCoord).xyz * 2 - 1;
 
-	float3 N = input.inNormal;
+	//float3 N = input.inNormal;
 	float3 T = normalize(input.inTangent - N * dot(input.inTangent, N));
 	float3 B = cross(T, N);
 
@@ -153,7 +243,7 @@ float4 main(PS_INPUT input) : SV_TARGET
 	float3 R = reflect(-viewDir, normalVec);
 
 	float3 F0 = float3(0.04f, 0.04f, 0.04f);
-	F0 = lerp(F0, pixelColor, metallic);
+	F0 = lerp(F0, pixelColor, metallic);// baseColor
 
 	float3 rad = float3(0.0f, 0.0f, 0.0f);
 	//reflectance equation
@@ -183,12 +273,15 @@ float4 main(PS_INPUT input) : SV_TARGET
 	float2 brdf = brdfLUT.Sample(basicSampler, float2(max(dot(normalVec, viewDir), 0.0f), rough)).rg;
 	float3 specular = prefilteredColor * (kS * brdf.x + brdf.y);
 
-	float3 ambient = (kD * diffuse + specular) * ao;
-	float3 color = ambient + Lo;//
+	//float3 ambient = (kD * diffuse + specular) * ao;
+	float3 ambient = (kD * pixelColor + specular) * ao;
+	
+	float3 color = ambient + Lo + Gs * Fs * Ds + .25 * clearcoat * Gr * Fr * Dr;//
 
+	//color = color / (color + float3(1.0f, 1.0f, 1.0f));
+	//color = pow(color, float3(1.0f / 2.2f, 1.0f / 2.2f, 1.0f / 2.2f));
 
-	color = color / (color + float3(1.0f, 1.0f, 1.0f));
-	color = pow(color, float3(1.0f / 2.2f, 1.0f / 2.2f, 1.0f / 2.2f));
 
 	return float4(color, 1.0f);
+	//return float4(pixelColor, 1.0f);
 }

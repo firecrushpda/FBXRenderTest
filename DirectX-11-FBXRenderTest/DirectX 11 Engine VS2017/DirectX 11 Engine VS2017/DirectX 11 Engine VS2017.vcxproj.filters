@@ -251,5 +251,6 @@
     <FxCompile Include="IntegrateBRDFPixelShader.hlsl" />
     <FxCompile Include="PrefilterMapPixelShader.hlsl" />
     <FxCompile Include="pixelmatshader.hlsl" />
+    <FxCompile Include="pixelDisneyBSDFshader.hlsl" />
   </ItemGroup>
 </Project>

@@ -23,6 +23,8 @@ public:
 	void RenderFrame(float dt);
 	Camera camera;
 	Model* model = NULL;
+	Model* quad = NULL;
+	Model* sphere = NULL;
 private:
 	bool InitializeDirectX(HWND hwnd);
 	bool InitializeShaders();
@@ -36,15 +38,20 @@ private:
 
 	VertexShader vertexshader;
 	PixelShader pixelshader;
+	PixelShader pixelmatshader;
+	
 	VertexShader vertexshader_skyBox;
 	PixelShader pixelshader_skyBox;
+
 	PixelShader ConvolutionPixelShader;
 	PixelShader PrefilterMapPixelShader;
 	PixelShader IntegrateBRDFPixelShader;
+	PixelShader DisneyBSDFPixelShader;
 	ConstantBuffer<CB_VS_vertexshader> cb_vs_vertexshader;
 	ConstantBuffer<CB_PS_pixelshader> cb_ps_pixelshader;
 	ConstantBuffer<CB_PS_lightData> cb_ps_lightdata;
 	ConstantBuffer<CB_PS_IBLSTATUS> cb_ps_iblstatus;
+	ConstantBuffer<cb_ps_BSDFData> cb_ps_BSDFData;
 	
 
 	VertexBuffer<Vertex> vertexBuffer;
@@ -77,6 +84,18 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> AluminiumInsulator_Metallic;
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> AluminiumInsulator_Normal;
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> AluminiumInsulator_Roughness;
+
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Leather_Albedo;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Leather_Height;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Leather_Metallic;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Leather_Normal;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Leather_Roughness;
+
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Wood_Albedo;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Wood_Height;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Wood_Metallic;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Wood_Normal;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Wood_Roughness;
 	//IBL
 	ID3D11Texture2D* skyIBLtex;
 	//ID3D11RenderTargetView* skyIBLRTV[6];
@@ -90,7 +109,7 @@ private:
 	//ID3D11RenderTargetView* brdfLUTRTV;
 	ID3D11ShaderResourceView* brdfLUTSRV;
 
-	Model* quad = NULL;
+	
 
 	int windowWidth = 0;
 	int windowHeight = 0;

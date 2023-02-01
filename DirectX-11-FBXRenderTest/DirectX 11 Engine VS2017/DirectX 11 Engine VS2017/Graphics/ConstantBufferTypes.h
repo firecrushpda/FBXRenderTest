@@ -38,3 +38,18 @@ struct CB_PS_IBLSTATUS
 	float roughness;
 	float metallic;
 };
+
+struct cb_ps_BSDFData
+{
+	DirectX::XMFLOAT3 baseColor;
+	float metallic;
+	float subsurface;
+	float specular;
+	float roughness;
+	float specularTint;
+	float anisotropic;
+	float sheen;
+	float sheenTint;
+	float clearcoat;
+	float clearcoatGloss;
+}; 
