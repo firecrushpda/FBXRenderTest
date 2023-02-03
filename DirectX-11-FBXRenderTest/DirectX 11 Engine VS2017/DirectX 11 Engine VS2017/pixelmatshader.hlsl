@@ -40,6 +40,15 @@ cbuffer BSDFConstantBuffer : register(b2)
 	float clearcoatGloss;
 }
 
+struct cb_ps_HeightMapStatus
+{
+	float HeightScale;
+	float MaxTessDistance;
+	float MinTessDistance;
+	float MinTessFactor;
+	float MaxTessFactor;
+};
+
 struct PS_INPUT
 {
     float4 inPosition : SV_POSITION;
@@ -60,8 +69,10 @@ Texture2D objTexture : TEXTURE: register(t3);
 Texture2D normalSRV : register(t4);
 Texture2D metallicSRV : register(t5);
 Texture2D roughSRV : register(t6);
+Texture2D heightSRV : register(t7);
 
-Texture2D dissolveNoiseTexture : TEXTURE: register(t7);
+
+Texture2D dissolveNoiseTexture : TEXTURE: register(t8);
 
 //======================================================
 float sqr(float x) { return x * x; }

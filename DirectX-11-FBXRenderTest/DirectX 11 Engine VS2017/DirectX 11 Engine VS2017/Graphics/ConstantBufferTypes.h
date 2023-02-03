@@ -53,3 +53,12 @@ struct cb_ps_BSDFData
 	float clearcoat;
 	float clearcoatGloss;
 }; 
+
+struct cb_ps_HeightMapStatus
+{
+	float HeightScale;
+	float MaxTessDistance;
+	float MinTessDistance;
+	float MinTessFactor;
+	float MaxTessFactor;
+};

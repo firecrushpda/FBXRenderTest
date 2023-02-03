@@ -129,6 +129,7 @@ void Graphics::RenderFrame(float dt)
 		this->deviceContext->PSSetShaderResources(4, 1, this->Wood_Normal.GetAddressOf());
 		this->deviceContext->PSSetShaderResources(5, 1, this->Wood_Metallic.GetAddressOf());
 		this->deviceContext->PSSetShaderResources(6, 1, this->Wood_Roughness.GetAddressOf());
+		this->deviceContext->PSSetShaderResources(7, 1, this->Wood_Height.GetAddressOf());
 		
 		//this->deviceContext->PSSetShader(pixelshader.GetShader(), NULL, 0);
 		cb_ps_BSDFData.data.roughness = roughness;
@@ -153,6 +154,7 @@ void Graphics::RenderFrame(float dt)
 		this->deviceContext->PSSetShaderResources(4, 1, this->AluminiumInsulator_Normal.GetAddressOf());
 		this->deviceContext->PSSetShaderResources(5, 1, this->AluminiumInsulator_Metallic.GetAddressOf());
 		this->deviceContext->PSSetShaderResources(6, 1, this->AluminiumInsulator_Roughness.GetAddressOf());
+		this->deviceContext->PSSetShaderResources(7, 1, this->AluminiumInsulator_Height.GetAddressOf());
 		sphere->Draw(camera.GetViewMatrix() * camera.GetProjectionMatrix());
 		
 		
@@ -160,6 +162,7 @@ void Graphics::RenderFrame(float dt)
 		this->deviceContext->PSSetShaderResources(4, 1, this->Leather_Normal.GetAddressOf());
 		this->deviceContext->PSSetShaderResources(5, 1, this->Leather_Metallic.GetAddressOf());
 		this->deviceContext->PSSetShaderResources(6, 1, this->Leather_Roughness.GetAddressOf());
+		this->deviceContext->PSSetShaderResources(7, 1, this->Leather_Height.GetAddressOf());
 		quad->Draw(camera.GetViewMatrix() * camera.GetProjectionMatrix());
 	}
 	
