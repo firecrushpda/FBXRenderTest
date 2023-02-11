@@ -8,3 +8,4 @@ features: IBLBrdf(based on learn opengl pbr guide)
 
 Collision(based on DirectX Collision)
 ![image](https://github.com/firecrushpda/FBXRenderTest/blob/main/DirectX-11-FBXRenderTest/DirectX%2011%20Engine%20VS2017/ScreenShot/1.png)
+![image](https://github.com/firecrushpda/FBXRenderTest/blob/main/DirectX-11-FBXRenderTest/DirectX%2011%20Engine%20VS2017/ScreenShot/2.png)
