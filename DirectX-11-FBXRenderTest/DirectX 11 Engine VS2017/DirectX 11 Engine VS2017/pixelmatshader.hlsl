@@ -38,6 +38,7 @@ cbuffer BSDFConstantBuffer : register(b2)
 	float sheenTint;
 	float clearcoat;
 	float clearcoatGloss;
+	float usepurecolor;
 }
 
 struct cb_ps_HeightMapStatus
@@ -186,113 +187,120 @@ void CalcRadiance(PS_INPUT input, float3 viewDir, float3 normalVec, float3 albed
 
 float4 main(PS_INPUT input) : SV_TARGET
 {
+	if(usepurecolor == 0){
+		//=================================================================
+		float3 L = normalize(lightPos1 - input.inWorldPos);//normalize(lightPos1);
+		float3 V = normalize(cameraPosition - input.inWorldPos);//normalize(cameraPosition);
+		float3 N = normalize(input.inNormal);
+		float3 X = normalize(input.inTangent - N * dot(input.inTangent, N));
+		float3 Y = normalize(cross(X, N));
 
-	//=================================================================
-	float3 L = normalize(lightPos1 - input.inWorldPos);//normalize(lightPos1);
-	float3 V = normalize(cameraPosition - input.inWorldPos);//normalize(cameraPosition);
-	float3 N = normalize(input.inNormal);
-	float3 X = normalize(input.inTangent - N * dot(input.inTangent, N));
-	float3 Y = normalize(cross(X, N));
+		float NdotL = dot(N, L);
+		float NdotV = dot(N, V);
 
-	float NdotL = dot(N, L);
-	float NdotV = dot(N, V);
+		float3 H = normalize(L + V);
+		float NdotH = dot(N, H);
+		float LdotH = dot(L, H);
 
-	float3 H = normalize(L + V);
-	float NdotH = dot(N, H);
-	float LdotH = dot(L, H);
+		float aspect = sqrt(1 - anisotropic * .9);
+		float ax = max(.001, sqr(roughness) / aspect);
+		float ay = max(.001, sqr(roughness)*aspect);
 
-	float aspect = sqrt(1 - anisotropic * .9);
-	float ax = max(.001, sqr(roughness) / aspect);
-	float ay = max(.001, sqr(roughness)*aspect);
+		float Gs;
+		Gs = smithG_GGX_aniso(NdotL, dot(L, X), dot(L, Y), ax, ay);
+		Gs *= smithG_GGX_aniso(NdotV, dot(V, X), dot(V, Y), ax, ay);
 
-	float Gs;
-	Gs = smithG_GGX_aniso(NdotL, dot(L, X), dot(L, Y), ax, ay);
-	Gs *= smithG_GGX_aniso(NdotV, dot(V, X), dot(V, Y), ax, ay);
+		float3 Cdlin = pow(baseColor, 2.2f);
+		float Cdlum = .3 * Cdlin[0] + .6 * Cdlin[1] + .1 * Cdlin[2];
 
-	float3 Cdlin = pow(baseColor, 2.2f);
-	float Cdlum = .3 * Cdlin[0] + .6 * Cdlin[1] + .1 * Cdlin[2];
+		float3 Ctint = Cdlum > 0 ? Cdlin / Cdlum : float3(1, 1, 1);
+		float3 Cspec0 = lerp(specular *.08 * lerp(float3(1, 1, 1), Ctint, specularTint), Cdlin, metallic);
+		float3 Csheen = lerp(float3(1, 1, 1), Ctint, sheenTint);
+		float FH = SchlickFresnel(LdotH);
+		float3 Fs = lerp(Cspec0, float3(1, 1, 1), FH);
+		float Ds = GTR2_aniso(NdotH, dot(H, X), dot(H, Y), ax, ay);
 
-	float3 Ctint = Cdlum > 0 ? Cdlin / Cdlum : float3(1, 1, 1);
-	float3 Cspec0 = lerp(specular *.08 * lerp(float3(1, 1, 1), Ctint, specularTint), Cdlin, metallic);
-	float3 Csheen = lerp(float3(1, 1, 1), Ctint, sheenTint);
-	float FH = SchlickFresnel(LdotH);
-	float3 Fs = lerp(Cspec0, float3(1, 1, 1), FH);
-	float Ds = GTR2_aniso(NdotH, dot(H, X), dot(H, Y), ax, ay);
+		float Dr = GTR1(NdotH, lerp(.1, .001, clearcoatGloss));
+		float Fr = lerp(.04, 1.0, FH);
+		float Gr = smithG_GGX(NdotL, .25) * smithG_GGX(NdotV, .25);
 
-	float Dr = GTR1(NdotH, lerp(.1, .001, clearcoatGloss));
-	float Fr = lerp(.04, 1.0, FH);
-	float Gr = smithG_GGX(NdotL, .25) * smithG_GGX(NdotV, .25);
+		//=================================================================
 
-	//=================================================================
+		//float3 pixelColor = objTexture.Sample(objSamplerState, input.inTexCoord);
+		float3 pixelColor = objTexture.Sample(basicSampler, input.inTexCoord).rgb;//pow(, 2.2f)
 
-    //float3 pixelColor = objTexture.Sample(objSamplerState, input.inTexCoord);
-	float3 pixelColor = objTexture.Sample(basicSampler, input.inTexCoord).rgb;//pow(, 2.2f)
+		//Normal
+		input.inNormal = normalize(input.inNormal);
+		input.inTangent = normalize(input.inTangent);
 
-	//Normal
-	input.inNormal = normalize(input.inNormal);
-	input.inTangent = normalize(input.inTangent);
+		float3 normalFromMap = normalSRV.Sample(basicSampler, input.inTexCoord).xyz * 2 - 1;
 
-	float3 normalFromMap = normalSRV.Sample(basicSampler, input.inTexCoord).xyz * 2 - 1;
+		//float3 N = input.inNormal;
+		float3 T = normalize(input.inTangent - N * dot(input.inTangent, N));
+		float3 B = cross(T, N);
 
-	//float3 N = input.inNormal;
-	float3 T = normalize(input.inTangent - N * dot(input.inTangent, N));
-	float3 B = cross(T, N);
+		float3x3 TBN = float3x3(T, B, N);
+		input.inNormal = normalize(mul(normalFromMap, TBN));
 
-	float3x3 TBN = float3x3(T, B, N);
-	input.inNormal = normalize(mul(normalFromMap, TBN));
+		float3 normalVec = input.inNormal;
 
-	float3 normalVec = input.inNormal;
+		//Metallic
+		float metallic = cbmetallic * metallicSRV.Sample(basicSampler, input.inTexCoord).r;
 
-	//Metallic
-	float metallic = cbmetallic * metallicSRV.Sample(basicSampler, input.inTexCoord).r;
+		//Rough
+		float rough = cbroughness * roughSRV.Sample(basicSampler, input.inTexCoord).r;
 
-	//Rough
-	float rough = cbroughness * roughSRV.Sample(basicSampler, input.inTexCoord).r;
+		float3 viewDir = normalize(cameraPosition - input.inWorldPos);
 
-	float3 viewDir = normalize(cameraPosition - input.inWorldPos);
+		float3 R = reflect(-viewDir, normalVec);
 
-	float3 R = reflect(-viewDir, normalVec);
+		float3 F0 = float3(0.04f, 0.04f, 0.04f);
+		F0 = lerp(F0, pixelColor, metallic);// baseColor
 
-	float3 F0 = float3(0.04f, 0.04f, 0.04f);
-	F0 = lerp(F0, pixelColor, metallic);// baseColor
+		float3 rad = float3(0.0f, 0.0f, 0.0f);
+		//reflectance equation
+		float3 Lo = float3(0.0f, 0.0f, 0.0f);
 
-	float3 rad = float3(0.0f, 0.0f, 0.0f);
-	//reflectance equation
-	float3 Lo = float3(0.0f, 0.0f, 0.0f);
+		CalcRadiance(input, viewDir, normalVec, pixelColor, rough, metallic, lightPos1, lightCol, F0, rad);
+		Lo += rad;
 
-	CalcRadiance(input, viewDir, normalVec, pixelColor, rough, metallic, lightPos1, lightCol, F0, rad);
-	Lo += rad;
+		CalcRadiance(input, viewDir, normalVec, pixelColor, rough, metallic, lightPos2, lightCol, F0, rad);
+		Lo += rad;
 
-	CalcRadiance(input, viewDir, normalVec, pixelColor, rough, metallic, lightPos2, lightCol, F0, rad);
-	Lo += rad;
+		CalcRadiance(input, viewDir, normalVec, pixelColor, rough, metallic, lightPos3, lightCol, F0, rad);
+		Lo += rad;
 
-	CalcRadiance(input, viewDir, normalVec, pixelColor, rough, metallic, lightPos3, lightCol, F0, rad);
-	Lo += rad;
+		CalcRadiance(input, viewDir, normalVec, pixelColor, rough, metallic, lightPos4, lightCol, F0, rad);
+		Lo += rad;
 
-	CalcRadiance(input, viewDir, normalVec, pixelColor, rough, metallic, lightPos4, lightCol, F0, rad);
-	Lo += rad;
+		float3 kS = FresnelSchlickRoughness(max(dot(normalVec, viewDir), 0.0f), F0, rough);
+		float3 kD = float3(1.0f, 1.0f, 1.0f) - kS;
+		kD *= 1.0 - metallic;
 
-	float3 kS = FresnelSchlickRoughness(max(dot(normalVec, viewDir), 0.0f), F0, rough);
-	float3 kD = float3(1.0f, 1.0f, 1.0f) - kS;
-	kD *= 1.0 - metallic;
+		float3 irradiance = skyIR.Sample(basicSampler, normalVec).rgb;
+		float3 diffuse = pixelColor * irradiance;//
 
-	float3 irradiance = skyIR.Sample(basicSampler, normalVec).rgb;
-	float3 diffuse = pixelColor * irradiance;//
+		const float MAX_REF_LOD = 4.0f;
+		float3 prefilteredColor = skyPrefilter.SampleLevel(basicSampler, R, rough * MAX_REF_LOD).rgb;
+		float2 brdf = brdfLUT.Sample(basicSampler, float2(max(dot(normalVec, viewDir), 0.0f), rough)).rg;
+		float3 specular = prefilteredColor * (kS * brdf.x + brdf.y);
 
-	const float MAX_REF_LOD = 4.0f;
-	float3 prefilteredColor = skyPrefilter.SampleLevel(basicSampler, R, rough * MAX_REF_LOD).rgb;
-	float2 brdf = brdfLUT.Sample(basicSampler, float2(max(dot(normalVec, viewDir), 0.0f), rough)).rg;
-	float3 specular = prefilteredColor * (kS * brdf.x + brdf.y);
-
-	//float3 ambient = (kD * diffuse + specular) * ao;
-	float3 ambient = (kD * pixelColor + specular) * ao;
+		//float3 ambient = (kD * diffuse + specular) * ao;
+		float3 ambient = (kD * pixelColor + specular) * ao;
 	
-	float3 color = ambient + Lo + Gs * Fs * Ds + .25 * clearcoat * Gr * Fr * Dr;//
+		float3 color = ambient + Lo + Gs * Fs * Ds + .25 * clearcoat * Gr * Fr * Dr;//
 
-	//color = color / (color + float3(1.0f, 1.0f, 1.0f));
-	//color = pow(color, float3(1.0f / 2.2f, 1.0f / 2.2f, 1.0f / 2.2f));
+		//color = color / (color + float3(1.0f, 1.0f, 1.0f));
+		//color = pow(color, float3(1.0f / 2.2f, 1.0f / 2.2f, 1.0f / 2.2f));
 
 
-	return float4(color, 1.0f);
+		return float4(color, 1.0f); 
+	}
+	else if (usepurecolor == 1)
+	{
+		return float4(baseColor, 1.0f);
+	}
+
+	return float4(baseColor, 1.0f);
 	//return float4(pixelColor, 1.0f);
 }

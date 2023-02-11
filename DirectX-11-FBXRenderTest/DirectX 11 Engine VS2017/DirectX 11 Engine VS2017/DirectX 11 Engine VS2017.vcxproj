@@ -151,6 +151,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Collision.cpp" />
     <ClCompile Include="FBXDefine.cpp" />
     <ClCompile Include="FBXModel.cpp" />
     <ClCompile Include="Graphics\Camera.cpp" />
@@ -180,6 +181,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BitFlag.h" />
+    <ClInclude Include="Collision.h" />
     <ClInclude Include="COMException.h" />
     <ClInclude Include="FBXDefine.h" />
     <ClInclude Include="FBXModel.h" />

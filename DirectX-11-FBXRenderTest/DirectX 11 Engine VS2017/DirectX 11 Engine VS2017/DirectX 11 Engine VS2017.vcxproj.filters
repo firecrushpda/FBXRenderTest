@@ -49,6 +49,12 @@
     <Filter Include="Source Files\Model">
       <UniqueIdentifier>{98a30292-aae5-45e8-9ee4-e8e3bbe8a942}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Collision">
+      <UniqueIdentifier>{f22f42ed-9c0d-40c6-b328-87f36e3f1c19}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Collision">
+      <UniqueIdentifier>{7bf7bbe7-ac00-4aa8-9315-772251b9b19c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source.cpp">
@@ -128,6 +134,9 @@
     </ClCompile>
     <ClCompile Include="Skybox.cpp">
       <Filter>Source Files\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Collision.cpp">
+      <Filter>Source Files\Collision</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -232,6 +241,9 @@
     </ClInclude>
     <ClInclude Include="Skybox.h">
       <Filter>Header Files\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Collision.h">
+      <Filter>Header Files\Collision</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -1,18 +1,21 @@
 #pragma once
 #include "Mesh.h"
 #include "../FBXModel.h"
+#include "../Collision.h"
 
 using namespace DirectX;
 
 class Model
 {
 public:
-	Model() { fbxmodel = new FBXModel(); 
-				m_fAccTime = 0;
-	};
-	bool Initialize(const std::string & filePath, ID3D11Device * device, ID3D11DeviceContext * deviceContext, ID3D11ShaderResourceView * texture, ConstantBuffer<CB_VS_vertexshader> & cb_vs_vertexshader);
+	Model() {	fbxmodel = new FBXModel(); 
+				collider = new Collision;
+				m_fAccTime = 0;};
+	bool Initialize(const std::string & filePath, ID3D11Device * device, ID3D11DeviceContext * deviceContext, ID3D11ShaderResourceView * texture, ConstantBuffer<CB_VS_vertexshader> & cb_vs_vertexshader,bool createP);
+	bool InitializeP(const XMFLOAT3* verts,const DWORD* indies,int vcount,int icount);
 	void SetTexture(ID3D11ShaderResourceView * texture);
 	void Draw(const XMMATRIX & viewProjectionMatrix);
+	void DrawP(const XMMATRIX & viewProjectionMatrix);
 	void Update(float fDeltaTime);
 
 	const XMVECTOR & GetPositionVector() const;
@@ -50,9 +53,22 @@ public:
 	UINT stride;
 	Microsoft::WRL::ComPtr<ID3D11Buffer> vertexbuffer;
 	Microsoft::WRL::ComPtr<ID3D11Buffer> indexbuffer;
+	Microsoft::WRL::ComPtr<ID3D11Buffer> vertexbuffer_p;
+	Microsoft::WRL::ComPtr<ID3D11Buffer> indexbuffer_p;
 
 	XMVECTOR sclVector;
 	XMFLOAT3 scl;
+	XMMATRIX worldMatrix = XMMatrixIdentity();
+
+	Collision* collider = NULL;
+	//debug primitive data (if have)
+	std::vector<Vertex> vertex_p;
+	const XMFLOAT3* verts_p = NULL;
+	const DWORD* indies_p = NULL;
+	int vcount_p = 0;
+	int icount_p = 0;
+	bool useDebugMesh = false;
+
 private:
 
 	FBXModel* fbxmodel = NULL;
@@ -62,9 +78,8 @@ private:
 	ID3D11DeviceContext * deviceContext = nullptr;
 	ConstantBuffer<CB_VS_vertexshader> * cb_vs_vertexshader = nullptr;
 	ID3D11ShaderResourceView * texture = nullptr;
-
 	
-	XMMATRIX worldMatrix = XMMatrixIdentity();
+	
 
 	XMVECTOR posVector;
 	XMVECTOR rotVector;

@@ -15,6 +15,7 @@
 #include "ImGUI\\imgui_impl_dx11.h"
 #include "Model.h"
 #include "../Skybox.h"
+#include "..//Collision.h"
 
 class Graphics
 {
@@ -25,6 +26,12 @@ public:
 	Model* model = NULL;
 	Model* quad = NULL;
 	Model* sphere = NULL;
+	Model* collider = NULL;
+
+	bool inte = false;
+
+	bool debugswitch = true;
+	
 private:
 	bool InitializeDirectX(HWND hwnd);
 	bool InitializeShaders();
@@ -52,6 +59,7 @@ private:
 	ConstantBuffer<CB_PS_lightData> cb_ps_lightdata;
 	ConstantBuffer<CB_PS_IBLSTATUS> cb_ps_iblstatus;
 	ConstantBuffer<cb_ps_BSDFData> cb_ps_BSDFData;
+	
 	
 
 	VertexBuffer<Vertex> vertexBuffer;
@@ -109,7 +117,7 @@ private:
 	//ID3D11RenderTargetView* brdfLUTRTV;
 	ID3D11ShaderResourceView* brdfLUTSRV;
 
-	
+	Collision* test;
 
 	int windowWidth = 0;
 	int windowHeight = 0;

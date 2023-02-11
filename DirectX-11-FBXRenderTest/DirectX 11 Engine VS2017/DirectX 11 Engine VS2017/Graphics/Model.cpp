@@ -1,18 +1,16 @@
 #include "Model.h"
 
-bool Model::Initialize(const std::string & filePath, ID3D11Device * device, ID3D11DeviceContext * deviceContext, ID3D11ShaderResourceView * texture, ConstantBuffer<CB_VS_vertexshader>& cb_vs_vertexshader)
+bool Model::Initialize(const std::string & filePath, ID3D11Device * device, ID3D11DeviceContext * deviceContext, ID3D11ShaderResourceView * texture, ConstantBuffer<CB_VS_vertexshader>& cb_vs_vertexshader,bool createP)
 {
 	this->device = device;
 	this->deviceContext = deviceContext;
 	this->texture = texture;
 	this->cb_vs_vertexshader = &cb_vs_vertexshader;
-	this->scl = XMFLOAT3(1, 1, 1);
-	this->sclVector = XMLoadFloat3(&this->scl);
+	this->useDebugMesh = createP;
 
 	try
 	{
 		fbxmodel->CreateFBXStatus(filePath.c_str(), this->fbxmodel);
-
 
 		auto pMeshData = fbxmodel->GetMeshData();
 		if (pMeshData->pVertexBuff == 0 || pMeshData->nVertexCount == 0)
@@ -56,6 +54,30 @@ bool Model::Initialize(const std::string & filePath, ID3D11Device * device, ID3D
 
 		hr = device->CreateBuffer(&indexBufferDesc, &indexBufferData, indexbuffer.GetAddressOf());
 		COM_ERROR_IF_FAILED(hr, "Failed to initialize index buffer.");
+
+		if (createP)
+		{
+
+			//collider
+			DWORD s_indices[] =
+			{
+				0, 1, 2, //FRONT
+				0, 2, 3, //FRONT
+				4, 7, 6, //BACK 
+				4, 6, 5, //BACK
+				3, 2, 6, //RIGHT SIDE
+				3, 6, 7, //RIGHT SIDE
+				4, 5, 1, //LEFT SIDE
+				4, 1, 0, //LEFT SIDE
+				1, 5, 6, //TOP
+				1, 6, 2, //TOP
+				0, 3, 7, //BOTTOM
+				0, 7, 4, //BOTTOM
+			};
+			collider->CreateObbByPointppp(pMeshData->nVertexCount, pMeshData->pVertexBuff);
+			auto verts = collider->corners;
+			InitializeP(verts, s_indices, 8, 36);
+		}
 	}
 	catch (COMException & exception)
 	{
@@ -63,9 +85,83 @@ bool Model::Initialize(const std::string & filePath, ID3D11Device * device, ID3D
 		return false;
 	}
 
+	this->scl = XMFLOAT3(1, 1, 1);
+	this->sclVector = XMLoadFloat3(&this->scl);
 	this->SetPosition(0.0f, 0.0f, 0.0f);
 	this->SetRotation(0.0f, 0.0f, 0.0f);
 	this->UpdateWorldMatrix();
+
+	
+	return true;
+}
+
+bool Model::InitializeP(const XMFLOAT3* verts_buff, const DWORD* indies_buff, int vcount, int icount) 
+{
+	verts_p = verts_buff;
+	indies_p = indies_buff;
+	vcount_p = vcount;
+	icount_p = icount;
+
+	for (size_t i = 0; i < vcount; i++)
+	{
+		Vertex vert;
+		vert.pos = verts_p[i];
+		vert.normal = XMFLOAT3(0, 0, 0);
+		vert.tangent = XMFLOAT3(0, 0, 0);
+		vert.texCoord = XMFLOAT2(0, 0);
+		vertex_p.push_back(vert);
+	}
+
+	try
+	{
+		auto pMeshData = verts_buff;
+		if (verts_buff == 0 || vcount == 0)
+		{
+			return false;
+		}
+		//create vertex buff
+		D3D11_BUFFER_DESC vertexBufferDesc;
+		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+
+		vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+		vertexBufferDesc.ByteWidth = sizeof(Vertex) * vcount;
+		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+		vertexBufferDesc.MiscFlags = 0;
+		vertexBufferDesc.StructureByteStride = 0;
+
+		D3D11_SUBRESOURCE_DATA vertexBufferData;
+		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+		vertexBufferData.pSysMem = (float*)vertex_p.data();
+		vertexBufferData.SysMemPitch = 0;
+		vertexBufferData.SysMemSlicePitch = 0;
+
+		HRESULT hr = device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, vertexbuffer_p.GetAddressOf());
+		COM_ERROR_IF_FAILED(hr, "Failed to initialize vertex buffer.");
+
+		//create index buff
+		D3D11_BUFFER_DESC indexBufferDesc;
+		ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
+		indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+		indexBufferDesc.ByteWidth = sizeof(DWORD) * icount;
+		indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+		indexBufferDesc.CPUAccessFlags = 0;
+		indexBufferDesc.MiscFlags = 0;
+		indexBufferDesc.StructureByteStride = 0;
+
+		D3D11_SUBRESOURCE_DATA indexBufferData;
+		indexBufferData.pSysMem = indies_buff;
+		indexBufferData.SysMemPitch = 0;
+		indexBufferData.SysMemSlicePitch = 0;
+
+		hr = device->CreateBuffer(&indexBufferDesc, &indexBufferData, indexbuffer_p.GetAddressOf());
+		COM_ERROR_IF_FAILED(hr, "Failed to initialize index buffer.");
+	}
+	catch (COMException & exception)
+	{
+		ErrorLogger::Log(exception);
+		return false;
+	}
 	return true;
 }
 
@@ -86,13 +182,55 @@ void Model::Draw(const XMMATRIX & viewProjectionMatrix)
 	this->deviceContext->VSSetConstantBuffers(0, 1, this->cb_vs_vertexshader->GetAddressOf());
 
 	//this->deviceContext->PSSetShaderResources(0, 1, &this->texture); //Set Texture
-
+	deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	stride = sizeof(Vertex);
 	UINT uiOffset = 0;
 	this->deviceContext->IASetVertexBuffers(0, 1, this->vertexbuffer.GetAddressOf(), &stride, &uiOffset);
 	this->deviceContext->IASetIndexBuffer(this->indexbuffer.Get(), DXGI_FORMAT::DXGI_FORMAT_R32_UINT, 0);
 	this->deviceContext->DrawIndexed(fbxmodel->GetMeshData()->nIndexCount, 0, 0);
+
+	//if (useDebugMesh) {
+	//	DrawP(viewProjectionMatrix);
+	//}
+	
 }
+
+void Model::DrawP(const XMMATRIX & viewProjectionMatrix)
+{
+	//update debug mesh coord
+	auto sclMatrix = XMMatrixScalingFromVector(sclVector);
+	
+
+	D3D11_MAPPED_SUBRESOURCE kMappedResource;
+	memset(&kMappedResource, 0, sizeof(kMappedResource));
+	HRESULT hr = deviceContext->Map(vertexbuffer_p.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &kMappedResource);
+	if (SUCCEEDED(hr))
+	{
+		memcpy(kMappedResource.pData, vertex_p.data(), 8u * sizeof(Vertex));
+		deviceContext->Unmap(vertexbuffer_p.Get(), 0);
+	}
+
+	//draw debug mesh
+	deviceContext->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINESTRIP);
+
+	//Update Constant buffer with WVP Matrix
+	//	auto sclMatrix = XMMatrixScalingFromVector(sclVector);
+	this->cb_vs_vertexshader->data.mat = this->transfomrMatirx * sclMatrix * this->worldMatrix * viewProjectionMatrix;//
+	this->cb_vs_vertexshader->data.mat = XMMatrixTranspose(this->cb_vs_vertexshader->data.mat);
+	this->cb_vs_vertexshader->data.mat_wvp = this->transfomrMatirx * sclMatrix * this->worldMatrix;//
+	this->cb_vs_vertexshader->data.mat_wvp = XMMatrixTranspose(this->cb_vs_vertexshader->data.mat_wvp);
+	this->cb_vs_vertexshader->ApplyChanges();
+	this->deviceContext->VSSetConstantBuffers(0, 1, this->cb_vs_vertexshader->GetAddressOf());
+
+	//this->deviceContext->PSSetShaderResources(0, 1, &this->texture); //Set Texture
+
+	stride = sizeof(Vertex);
+	UINT uiOffset = 0;
+	this->deviceContext->IASetVertexBuffers(0, 1, this->vertexbuffer_p.GetAddressOf(), &stride, &uiOffset);
+	this->deviceContext->IASetIndexBuffer(this->indexbuffer_p.Get(), DXGI_FORMAT::DXGI_FORMAT_R32_UINT, 0);
+	this->deviceContext->DrawIndexed(icount_p, 0, 0);
+}
+
 
 void Model::Update(float fDeltaTime) {
 
@@ -114,6 +252,21 @@ void Model::Update(float fDeltaTime) {
 			pD3DDeviceContext->Unmap(vertexbuffer.Get(), 0);
 		}
 		//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+		//update debug corners
+		collider->CreateObbByPointppp(pMeshData->nVertexCount, pMeshData->pVertexBuff);
+		
+		vertex_p.clear();
+		auto verts = collider->corners;
+		for (size_t i = 0; i < vcount_p; i++)
+		{
+			Vertex vert;
+			vert.pos = verts[i];
+			vert.normal = XMFLOAT3(0, 0, 0);
+			vert.tangent = XMFLOAT3(0, 0, 0);
+			vert.texCoord = XMFLOAT2(0, 0);
+			vertex_p.push_back(vert);
+		}
 	}
 }
 

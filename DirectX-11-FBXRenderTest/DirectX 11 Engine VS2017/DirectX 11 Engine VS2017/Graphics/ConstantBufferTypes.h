@@ -52,6 +52,7 @@ struct cb_ps_BSDFData
 	float sheenTint;
 	float clearcoat;
 	float clearcoatGloss;
+	float usepurecolor;
 }; 
 
 struct cb_ps_HeightMapStatus

@@ -10,6 +10,30 @@ bool Engine::Initialize(HINSTANCE hInstance, std::string window_title, std::stri
 	if (!gfx.Initialize(this->render_window.GetHWND(), width, height))
 		return false;
 
+	HKL defaultLanguageLayout = LoadKeyboardLayout(L"0x04090409", KLF_SUBSTITUTE_OK);
+	DWORD dwThreadID = GetCurrentThreadId();
+	HKL hCurKeyboard = GetKeyboardLayout(dwThreadID);
+	if (hCurKeyboard != defaultLanguageLayout)
+	{
+		UINT i;
+		HKL hklCurrent;
+		UINT uLayouts;
+		HKL * lpList;
+
+		uLayouts = GetKeyboardLayoutList(0, NULL);
+		lpList = (HKL*)malloc(uLayouts * sizeof(HKL));
+		uLayouts = GetKeyboardLayoutList(uLayouts, lpList);
+
+		for (i = 0; i < uLayouts; i++)
+		{
+			hklCurrent = *(lpList + i);
+			if (hklCurrent == defaultLanguageLayout)
+			{
+				ActivateKeyboardLayout(hklCurrent, 0);
+			}
+		}
+	}
+
 	return true;
 }
 
@@ -76,6 +100,32 @@ void Engine::Update(float dt)
 	}
 	//gfx.model->GetFBXModel()->m_kcurrentAnimaionIndex = 0;
 	gfx.model->Update(dt);
+
+	//collision
+	BoundingBox cp1 = gfx.model->collider->obb;  
+	BoundingBox cp2 = gfx.quad->collider->obb;
+	auto sclMatrix = XMMatrixScalingFromVector(gfx.model->sclVector);
+	auto matrix = gfx.model->transfomrMatirx * sclMatrix * gfx.model->worldMatrix;
+	cp1.Transform(cp1, matrix);
+
+	sclMatrix = XMMatrixScalingFromVector(gfx.quad->sclVector);
+	matrix = gfx.quad->transfomrMatirx * sclMatrix * gfx.quad->worldMatrix;
+	cp2.Transform(cp2, matrix);
+
+	gfx.inte = cp1.Intersects(cp2);
+
+	auto quadpos = gfx.quad->GetPositionFloat3();
+	if (quadpos.x > 100.0f)
+		moveswitch = false;
+
+	if (quadpos.x <= -100.0f)
+		moveswitch = true;
+
+	gfx.quad->AdjustRotation(XMFLOAT3(0.01f, 0.01f, 0.01f));
+	if (moveswitch == true)
+		gfx.quad->SetPosition(XMFLOAT3(quadpos.x + 1, quadpos.y, quadpos.z));
+	else 
+		gfx.quad->SetPosition(XMFLOAT3(quadpos.x - 1, quadpos.y, quadpos.z));
 
 }
 

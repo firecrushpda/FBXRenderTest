@@ -19,7 +19,7 @@ bool Skybox::Initialize(ID3D11Device * device,
 	this->model->sclVector = XMLoadFloat3(&this->model->scl);
 	this->model->SetPosition(0.0f, 0.0f, 0.0f);
 	this->model->SetRotation(0.0f, 0.0f, 0.0f);
-	model->Initialize("Data//Sphere.fbx", device, deviceContext, NULL, cb_vs_vertexshader);
+	model->Initialize("Data//Sphere.fbx", device, deviceContext, NULL, cb_vs_vertexshader,false);
 
 	//texture
 	std::vector<std::wstring> path = { L"Data//Textures//Left_Tex.png",L"Data//Textures//Right_Tex.png",

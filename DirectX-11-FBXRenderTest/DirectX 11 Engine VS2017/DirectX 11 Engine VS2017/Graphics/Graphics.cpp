@@ -2,6 +2,7 @@
 #include "../FBXModel.h"
 
 
+
 bool Graphics::Initialize(HWND hwnd, int width, int height)
 {
 	this->windowWidth = width;
@@ -15,7 +16,7 @@ bool Graphics::Initialize(HWND hwnd, int width, int height)
 		return false;
 
 	model = new Model;
-	model->Initialize("IKhaitteru.fbx", device.Get(), deviceContext.Get(), NULL, cb_vs_vertexshader);
+	model->Initialize("IKhaitteru.fbx", device.Get(), deviceContext.Get(), NULL, cb_vs_vertexshader,true);
 	model->transfomrMatirx = XMMatrixSet(
 		1, 0, 0, 0,
 		0, 0, -1, 0,
@@ -27,24 +28,51 @@ bool Graphics::Initialize(HWND hwnd, int width, int height)
 	skybox->Initialize(device.Get(), deviceContext.Get(), cb_vs_vertexshader);
 
 	quad = new Model;
-	quad->Initialize("Data//quad.fbx", device.Get(), deviceContext.Get(), NULL, cb_vs_vertexshader);
-	quad->AdjustPosition(-50, 0, 0);
+	quad->Initialize("Data//quad.fbx", device.Get(), deviceContext.Get(), NULL, cb_vs_vertexshader,true);
+	quad->AdjustPosition(-50, -30, 0);
 	quad->scl = XMFLOAT3(10, 10, 10);
 	quad->sclVector = XMLoadFloat3(&quad->scl);
 
 
 	sphere = new Model;
-	sphere->Initialize("Data//Sphere.fbx", device.Get(), deviceContext.Get(), NULL, cb_vs_vertexshader);
+	sphere->Initialize("Data//Sphere.fbx", device.Get(), deviceContext.Get(), NULL, cb_vs_vertexshader,false);
 	sphere->AdjustPosition(50, 0, 0);
 	//quad->scl = XMFLOAT3(10, 10, 10);
 	sphere->sclVector = XMLoadFloat3(&quad->scl);
-	
 
 	if (!InitializeScene())
 		return false;
 
 	if (!InitializeIBLStatus())
 		return false;
+
+	DWORD s_indices[] =
+	{
+		0, 1, 2, //FRONT
+		0, 2, 3, //FRONT
+		4, 7, 6, //BACK 
+		4, 6, 5, //BACK
+		3, 2, 6, //RIGHT SIDE
+		3, 6, 7, //RIGHT SIDE
+		4, 5, 1, //LEFT SIDE
+		4, 1, 0, //LEFT SIDE
+		1, 5, 6, //TOP
+		1, 6, 2, //TOP
+		0, 3, 7, //BOTTOM
+		0, 7, 4, //BOTTOM
+	};
+
+
+	/*test = new Collision;
+	auto meshdata = quad->GetFBXModel()->GetMeshData();
+	test->CreateObbByPointppp(meshdata->nVertexCount, meshdata->pVertexBuff);
+
+	collider = new Model;
+	collider->sclVector = XMLoadFloat3(&quad->scl);
+
+	auto verts = test->corners;
+	collider->InitializeP(verts, s_indices, 8, 36, device.Get(), deviceContext.Get(), NULL, cb_vs_vertexshader);*/
+
 
 	//Setup ImGui
 	IMGUI_CHECKVERSION();
@@ -143,19 +171,36 @@ void Graphics::RenderFrame(float dt)
 		cb_ps_BSDFData.data.subsurface = subsurface;
 		cb_ps_BSDFData.data.metallic = metallic;
 		cb_ps_BSDFData.data.baseColor = XMFLOAT3(1, 1, 1);
+		cb_ps_BSDFData.data.usepurecolor = 0;
 		cb_ps_BSDFData.ApplyChanges();
 		this->deviceContext->PSSetConstantBuffers(2, 1, this->cb_ps_BSDFData.GetAddressOf());
 
 		model->scl = XMFLOAT3(0.1f, 0.1f, 0.1f);
 		model->sclVector = XMLoadFloat3(&model->scl);
-		model->Draw(camera.GetViewMatrix() * camera.GetProjectionMatrix());
+		if (debugswitch)
+		{
+			model->Draw(camera.GetViewMatrix() * camera.GetProjectionMatrix());
+		}
+		if (model->useDebugMesh) {
+			if (inte)
+			{
+				cb_ps_BSDFData.data.baseColor = XMFLOAT3(1, 0, 0);
+			}
+			else
+			{
+				cb_ps_BSDFData.data.baseColor = XMFLOAT3(1, 1, 1);
+			}
+			cb_ps_BSDFData.data.usepurecolor = 1;
+			cb_ps_BSDFData.ApplyChanges();
+			model->DrawP(camera.GetViewMatrix() * camera.GetProjectionMatrix());
+		}
 
 		this->deviceContext->PSSetShaderResources(3, 1, this->AluminiumInsulator_Albedo.GetAddressOf());
 		this->deviceContext->PSSetShaderResources(4, 1, this->AluminiumInsulator_Normal.GetAddressOf());
 		this->deviceContext->PSSetShaderResources(5, 1, this->AluminiumInsulator_Metallic.GetAddressOf());
 		this->deviceContext->PSSetShaderResources(6, 1, this->AluminiumInsulator_Roughness.GetAddressOf());
 		this->deviceContext->PSSetShaderResources(7, 1, this->AluminiumInsulator_Height.GetAddressOf());
-		sphere->Draw(camera.GetViewMatrix() * camera.GetProjectionMatrix());
+		//sphere->Draw(camera.GetViewMatrix() * camera.GetProjectionMatrix());
 		
 		
 		this->deviceContext->PSSetShaderResources(3, 1, this->Leather_Albedo.GetAddressOf());
@@ -163,7 +208,51 @@ void Graphics::RenderFrame(float dt)
 		this->deviceContext->PSSetShaderResources(5, 1, this->Leather_Metallic.GetAddressOf());
 		this->deviceContext->PSSetShaderResources(6, 1, this->Leather_Roughness.GetAddressOf());
 		this->deviceContext->PSSetShaderResources(7, 1, this->Leather_Height.GetAddressOf());
-		quad->Draw(camera.GetViewMatrix() * camera.GetProjectionMatrix());
+		if (debugswitch)
+		{
+			cb_ps_BSDFData.data.usepurecolor = 0;
+			cb_ps_BSDFData.ApplyChanges();
+			quad->Draw(camera.GetViewMatrix() * camera.GetProjectionMatrix());
+		}
+		if (quad->useDebugMesh) {
+
+			if (inte)
+			{
+				cb_ps_BSDFData.data.baseColor = XMFLOAT3(1, 0, 0);
+			}
+			else
+			{
+				cb_ps_BSDFData.data.baseColor = XMFLOAT3(1, 1, 1);
+			}
+
+			cb_ps_BSDFData.data.usepurecolor = 1;
+			cb_ps_BSDFData.ApplyChanges();
+			quad->DrawP(camera.GetViewMatrix() * camera.GetProjectionMatrix());
+		}
+
+		//update debug mesh coord
+		//auto verts = test->corners;
+		//auto sclMatrix = XMMatrixScalingFromVector(quad->sclVector);
+		//auto transmat = quad->transfomrMatirx * sclMatrix * quad->worldMatrix;
+		//for (size_t i = 0; i < 8; i++)
+		//{
+		//	auto vert = XMLoadFloat3(&verts[i]);
+		//	//auto transvert = DirectX::XMVector3TransformCoord(vert, transmat);
+		//	auto transvert = DirectX::XMVector3Transform(vert, transmat);
+		//	XMStoreFloat3(&collider->vertex_p.at(i).pos, transvert);
+		//}
+		//D3D11_MAPPED_SUBRESOURCE kMappedResource;
+		//memset(&kMappedResource, 0, sizeof(kMappedResource));
+		//HRESULT hr = deviceContext->Map(collider->vertexbuffer_p.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &kMappedResource);
+		//if (SUCCEEDED(hr))
+		//{
+		//	memcpy(kMappedResource.pData, collider->vertex_p.data(), 8u * sizeof(Vertex));
+		//	deviceContext->Unmap(collider->vertexbuffer_p.Get(), 0);
+		//}
+
+		////draw debug mesh
+		//deviceContext->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINESTRIP); //D3D_PRIMITIVE_TOPOLOGY_LINELIST, D3D_PRIMITIVE_TOPOLOGY_LINESTRIP,
+		//collider->DrawP(camera.GetViewMatrix() * camera.GetProjectionMatrix());		  
 	}
 	
 	//Draw Text
@@ -177,9 +266,10 @@ void Graphics::RenderFrame(float dt)
 		fpsTimer.Restart();
 	}*/
 	spriteBatch->Begin();
-	auto text = "cam pos: " + std::to_string(camera.GetPositionFloat3().x) + " "
+	/*auto text = "cam pos: " + std::to_string(camera.GetPositionFloat3().x) + " "
 							+ std::to_string(camera.GetPositionFloat3().y) + " "
-							+ std::to_string(camera.GetPositionFloat3().z);
+							+ std::to_string(camera.GetPositionFloat3().z);*/
+	auto text = std::to_string(inte);
 	
 	spriteFont->DrawString(spriteBatch.get(), StringConverter::StringToWide(text).c_str(), DirectX::XMFLOAT2(0, 0), DirectX::Colors::White, 0.0f, DirectX::XMFLOAT2(0.0f,0.0f), DirectX::XMFLOAT2(1.0f, 1.0f));
 	spriteBatch->End();
@@ -191,6 +281,7 @@ void Graphics::RenderFrame(float dt)
 	ImGui::NewFrame();
 	//Create ImGui Test Window
 	ImGui::Begin("Test");
+	ImGui::Checkbox("debugswitch", &debugswitch);
 	ImGui::DragFloat("Alpha", &alpha, 0.1f, 0.0f, 1.0f);
 	ImGui::DragFloat("Roughness", &roughness, 0.1f, 0.0f, 1.0f);
 	ImGui::DragFloat("Metallic", &metallic, 0.1f, 0.0f, 1.0f);
@@ -203,6 +294,7 @@ void Graphics::RenderFrame(float dt)
 	ImGui::DragFloat("SpecularTint", &specularTint, 0.1f, 0.0f, 1.0f);
 	ImGui::DragFloat("Subsurface", &subsurface, 0.1f, 0.0f, 1.0f);
 	ImGui::DragFloat3("LightColor", &lightcol.x, 0.1f, 0.0f, 1.0f);
+
 	
 	ImGui::End();
 	//Assemble Together Draw Data
@@ -574,6 +666,7 @@ bool Graphics::InitializeScene()
 		cb_ps_BSDFData.data.specular = 0.5;
 		cb_ps_BSDFData.data.specularTint = 0;
 		cb_ps_BSDFData.data.subsurface = 0;
+		cb_ps_BSDFData.data.usepurecolor = 0;
 		cb_ps_BSDFData.ApplyChanges();
 
 
